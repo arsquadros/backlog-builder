@@ -1,19 +1,32 @@
 import streamlit as st
-import json
+
 import uuid
 import bcrypt
-import tempfile
-from typing import Dict, List, Optional
+
+from typing import Dict, List
 from datetime import datetime
-from google.cloud import firestore
 from weasyprint import HTML
 
+from google.cloud import firestore
+from google.oauth2 import service_account
+
 # --- 1. CONFIGURAÇÃO FIRESTORE ---
-try:
-    db = firestore.Client()
-except Exception:
-    st.warning("⚠️ Firestore não configurado. Verifique as credenciais do Google Cloud.")
-    db = None
+def get_firestore_client():
+    try:
+        # Se estivermos no Streamlit Cloud (ou local com secrets.toml)
+        if "gcp_service_account" in st.secrets:
+            # Transforma o objeto de secrets em um dicionário comum
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            creds = service_account.Credentials.from_service_account_info(creds_dict)
+            return firestore.Client(credentials=creds, project=creds_dict.get("project_id"))
+        
+        # Fallback para ambiente local que já tenha o gcloud configurado
+        return firestore.Client()
+    except Exception as e:
+        st.error(f"Erro ao configurar Firestore: {e}")
+        return None
+
+db = get_firestore_client()
 
 # --- 2. SEGURANÇA E SERVIÇOS DE AUTH ---
 class AuthService:
