@@ -104,13 +104,13 @@ class DataService:
                 </div>
         """
         for ep in data:
-            html_content += f"<div class='epic'><strong>🟣 Épico: {ep['title']}</strong> <span class='badge'>👤 {ep['responsible']}</span>"
+            html_content += f"<div class='epic'><strong>Épico: {ep['title']}</strong> <span class='badge'>{ep['responsible']}</span>"
             for ft in ep.get('children', []):
-                html_content += f"<div class='feat'><strong>🟢 Feature: {ft['title']}</strong> <span class='badge'>👤 {ft['responsible']}</span>"
+                html_content += f"<div class='feat'><strong>Feature: {ft['title']}</strong> <span class='badge'>{ft['responsible']}</span>"
                 for bk in ft.get('children', []):
-                    html_content += f"<div class='item'>🟡 Item: {bk['title']} (Resp: {bk['responsible']})"
+                    html_content += f"<div class='item'>Item: {bk['title']} ({bk['responsible']})"
                     for tk in bk.get('children', []):
-                        html_content += f"<div class='task'>🔵 Tarefa: {tk['title']} [Executor: {tk['responsible']}]</div>"
+                        html_content += f"<div class='task'>Tarefa: {tk['title']} [{tk['responsible']}]</div>"
                     html_content += "</div>"
                 html_content += "</div>"
             html_content += "</div>"
@@ -123,11 +123,10 @@ def apply_styles():
     st.markdown("""
         <style>
         .stButton > button { width: 100%; border-radius: 5px; }
-        .card-info { font-size: 0.75rem; color: #666; margin-top: -10px; margin-bottom: 10px; }
+        .card-info { font-size: 0.75rem; margin-top: -10px; margin-bottom: 10px; }
         .task-card { 
             padding: 10px; border-radius: 5px; 
             border-left: 5px solid #2980b9; margin-bottom: 8px;
-            background-color: #f9f9f9;
         }
         </style>
     """, unsafe_allow_html=True)
