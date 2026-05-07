@@ -2,3 +2,5 @@ streamlit
 pandas
 weasyprint
 jinja2
+bcrypt
+google-cloud-firestore

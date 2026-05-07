@@ -1,1 +1,4 @@
 .venv/
+.secrets/
+.streamlit/
+.env
