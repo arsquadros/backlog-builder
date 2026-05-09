@@ -322,7 +322,7 @@ def main():
             mime="application/pdf"
         )
 
-        email_destinatario = st.text_input("E-mail para envio", value=f"")
+        email_destinatario = st.text_input("E-mail para envio (deixe em branco para baixar o arquivo)", value=f"")
 
         if st.button("✨ Gerar Documentação (IA)"):
             with st.spinner("O Gemini está redigindo os PBIs..."):
