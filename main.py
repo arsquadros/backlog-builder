@@ -12,6 +12,46 @@ from google.oauth2 import service_account
 from google import genai
 from google.genai import types
 
+
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+
+class EmailService:
+    @staticmethod
+    def send_backlog_report(to_email, project_name, username, pdf_data):
+        # Configurações (Devem estar no st.secrets)
+        smtp_server = st.secrets["smtp_server"]
+        smtp_port = st.secrets["smtp_port"]
+        sender_email = st.secrets["sender_email"]
+        sender_password = st.secrets["sender_password"]
+
+        msg = MIMEMultipart()
+        msg['From'] = f"Backlog Builder SMTP <{sender_email}>"
+        msg['To'] = to_email
+        msg['Subject'] = f"Documentação do Projeto: {project_name}"
+
+        body = open("documents/email_body.md", "r").read().format(username=username, project_name=project_name)
+        msg.attach(MIMEText(body, 'plain'))
+
+        # Anexando o PDF
+        part = MIMEApplication(pdf_data, Name=f"{project_name}.pdf")
+        part['Content-Disposition'] = f'attachment; filename="{project_name}.pdf"'
+        msg.attach(part)
+
+        try:
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.send_message(msg)
+            server.quit()
+            return True
+        except Exception as e:
+            st.error(f"Erro ao enviar e-mail: {e}")
+            return False
+
+
 class AIService:
     @staticmethod
     def generate_pbi_description(epic_title, feat_title, item_title, tasks):
@@ -19,7 +59,7 @@ class AIService:
             client = genai.Client(api_key=st.secrets["google_api_key"])
             task_list = ", ".join([t['title'] for t in tasks])
             
-            prompt = open("prompts/pbi_description.md", "r").read().format(
+            prompt = open("documents/pbi_description.md", "r").read().format(
                 epic_title=epic_title,
                 feat_title=feat_title,
                 item_title=item_title,
@@ -240,12 +280,17 @@ def main():
             c1, c2, c3 = st.columns([1, 2, 1])
             with c2:
                 new_user = st.text_input("Novo Usuário", key="reg_user")
-                new_pw = st.text_input("Nova Senha", type="password", key="reg_pw")
+                new_pw_1 = st.text_input("Nova Senha", type="password", key="reg_pw_1")
+                new_pw_2 = st.text_input("Repita a Senha", type="password", key="reg_pw_2")
                 if st.button("Cadastrar"):
-                    if AuthService.create_user(new_user, new_pw):
-                        st.success("Conta criada! Vá para a aba de Login.")
+                    if new_pw_1 == new_pw_2:
+                        if AuthService.create_user(new_user, new_pw_1):
+                            st.success("Conta criada! Vá para a aba de Login.")
+                        else:
+                            st.error("Usuário já existe.")
                     else:
-                        st.error("Usuário já existe ou erro no Firestore.")
+                        st.error("As senhas não coincidem.")
+
         return
 
     # SIDEBAR
@@ -257,9 +302,12 @@ def main():
         
         st.divider()
         st.subheader("📁 Projeto Atual")
-        proj_name = st.text_input("Nome do Projeto", value="Meu_Backlog_IA")
+
+        if "proj_name" not in st.session_state:
+            st.session_state.proj_name = "Meu Backlog 001"
+        proj_name = st.text_input("Nome do Projeto", value=st.session_state.proj_name)
         
-        if st.button("💾 Salvar no Firestore"):
+        if st.button("💾 Salvar"):
             if DataService.save_project(st.session_state.user, proj_name, st.session_state.backlog):
                 st.success("Salvo com sucesso!")
         
@@ -274,9 +322,19 @@ def main():
             mime="application/pdf"
         )
 
+        email_destinatario = st.text_input("E-mail para envio", value=f"")
+
         if st.button("✨ Gerar Documentação (IA)"):
             with st.spinner("O Gemini está redigindo os PBIs..."):
                 doc_pdf = DocService.generate_doc_report(proj_name, st.session_state.backlog)
+                if email_destinatario != "":
+                    sucesso = EmailService.send_backlog_report(email_destinatario, proj_name, st.session_state.user, doc_pdf)
+                else:
+                    sucesso = False
+
+                if sucesso:
+                    st.success(f"E-mail enviado para {email_destinatario}!")
+
                 st.download_button(
                     label="📥 Baixar Relatório de PBIs",
                     data=doc_pdf,
@@ -291,6 +349,7 @@ def main():
             selected_load = st.selectbox("Selecione", options=list(repo.keys()))
             if st.button("📂 Carregar"):
                 st.session_state.backlog = repo[selected_load]['data']
+                st.session_state.proj_name = selected_load
                 st.rerun()
 
     # DASHBOARD DE EDIÇÃO
