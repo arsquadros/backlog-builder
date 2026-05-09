@@ -9,6 +9,69 @@ from weasyprint import HTML
 
 from google.cloud import firestore
 from google.oauth2 import service_account
+from google import genai
+from google.genai import types
+
+class AIService:
+    @staticmethod
+    def generate_pbi_description(epic_title, feat_title, item_title, tasks):
+        try:
+            client = genai.Client(api_key=st.secrets["google_api_key"])
+            task_list = ", ".join([t['title'] for t in tasks])
+            
+            prompt = open("prompts/pbi_description.md", "r").read().format(
+                epic_title=epic_title,
+                feat_title=feat_title,
+                item_title=item_title,
+                task_list=task_list
+            )
+
+            response = client.models.generate_content(
+                model=st.secrets["google_model_name"],
+                contents=types.Part.from_text(text=prompt),
+                config=types.GenerateContentConfig(
+                    temperature=0.5
+                ),
+            )
+            client.close()
+            return response.text
+        except Exception as e:
+            return f"Erro ao gerar descrição via IA. Verifique a chave de API. {e}"
+
+
+class DocService:
+    @staticmethod
+    def generate_doc_report(project_name, data):
+        html_content = f"""
+        <html>
+            <head>
+                <style>
+                    body {{ font-family: 'Segoe UI', sans-serif; line-height: 1.6; color: #2c3e50; }}
+                    .pbi-card {{ border: 1px solid #ddd; padding: 20px; margin-bottom: 30px; page-break-inside: avoid; }}
+                    .pbi-header {{ background: #2980b9; color: white; padding: 10px; margin: -20px -20px 20px -20px; }}
+                    .context-box {{ background: #f9f9f9; padding: 10px; border-left: 5px solid #2980b9; }}
+                    .tasks {{ font-size: 0.85em; color: #7f8c8d; margin-top: 10px; }}
+                </style>
+            </head>
+            <body>
+                <h1>Documentação de Requisitos: {project_name}</h1>
+        """
+        
+        for ep in data:
+            for ft in ep.get('children', []):
+                for bk in ft.get('children', []):
+                    desc = AIService.generate_pbi_description(ep['title'], ft['title'], bk['title'], bk.get('children', []))
+                    html_content += f"""
+                    <div class='pbi-card'>
+                        <div class='pbi-header'><strong>ITEM: {bk['title']}</strong> (Ref: {ft['title']})</div>
+                        <div class='context-box'>{desc.replace(chr(10), '<br>')}</div>
+                        <div class='tasks'><strong>Tarefas relacionadas:</strong> {", ".join([t['title'] for t in bk.get('children', [])])}</div>
+                    </div>
+                    """
+        
+        html_content += "</body></html>"
+        return HTML(string=html_content).write_pdf()
+
 
 # --- 1. CONFIGURAÇÃO FIRESTORE ---
 def get_firestore_client():
@@ -200,14 +263,27 @@ def main():
             if DataService.save_project(st.session_state.user, proj_name, st.session_state.backlog):
                 st.success("Salvo com sucesso!")
         
+        st.divider()
+        st.subheader("📝 Relatórios")
+
         pdf_data = DataService.generate_pdf(proj_name, st.session_state.backlog)
         st.download_button(
-            label="📄 Exportar PDF",
+            label="📄 Exportar Backlog",
             data=pdf_data,
             file_name=f"{proj_name}.pdf",
             mime="application/pdf"
         )
-        
+
+        if st.button("✨ Gerar Documentação (IA)"):
+            with st.spinner("O Gemini está redigindo os PBIs..."):
+                doc_pdf = DocService.generate_doc_report(proj_name, st.session_state.backlog)
+                st.download_button(
+                    label="📥 Baixar Relatório de PBIs",
+                    data=doc_pdf,
+                    file_name=f"DOC_{proj_name}.pdf",
+                    mime="application/pdf"
+                )
+
         st.divider()
         st.subheader("📂 Abrir Projeto")
         repo = DataService.get_projects(st.session_state.user)

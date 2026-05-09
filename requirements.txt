@@ -4,3 +4,4 @@ weasyprint
 jinja2
 bcrypt
 google-cloud-firestore
+google-genai
