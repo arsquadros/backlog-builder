@@ -18,6 +18,44 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
+
+import re
+
+def is_valid_username(username):
+    """
+    - Entre 3 e 20 caracteres.
+    - Apenas letras, números e underscores.
+    - Não pode começar com número.
+    """
+    pattern = r"^[a-zA-Z][a-zA-Z0-9_]{2,19}$"
+    if not re.match(pattern, username):
+        return False, "O usuário deve ter 3-20 caracteres, começar com uma letra e conter apenas letras, números ou '_'."
+    return True, ""
+
+def is_valid_password(password):
+    """
+    - Mínimo 8 caracteres (recomendo 8 em vez de 6 para maior segurança).
+    - Máximo 64 caracteres (evita ataques de negação de serviço).
+    - Pelo menos uma letra maiúscula, uma minúscula, um número e um símbolo.
+    """
+    if len(password) < 8:
+        return False, "A senha deve ter pelo menos 8 caracteres."
+    if len(password) > 64:
+        return False, "A senha é muito longa (máximo 64 caracteres)."
+    
+    # Check de complexidade
+    if not re.search(r"[A-Z]", password):
+        return False, "A senha deve conter ao menos uma letra maiúscula."
+    if not re.search(r"[a-z]", password):
+        return False, "A senha deve conter ao menos uma letra minúscula."
+    if not re.search(r"\d", password):
+        return False, "A senha deve conter ao menos um número."
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        return False, "A senha deve conter ao menos um caractere especial."
+    
+    return True, ""
+
+
 class EmailService:
     @staticmethod
     def send_backlog_report(to_email, project_name, username, pdf_data):
@@ -266,9 +304,10 @@ def main():
         with tab1:
             c1, c2, c3 = st.columns([1, 2, 1])
             with c2:
+                st.subheader("Entrar Com a Sua Conta")
                 user = st.text_input("Usuário", key="login_user")
                 pw = st.text_input("Senha", type="password", key="login_pw")
-                if st.button("Entrar"):
+                if st.button("Entrar", use_container_width=True):
                     if AuthService.authenticate(user, pw):
                         st.session_state.authenticated = True
                         st.session_state.user = user
@@ -279,17 +318,32 @@ def main():
         with tab2:
             c1, c2, c3 = st.columns([1, 2, 1])
             with c2:
-                new_user = st.text_input("Novo Usuário", key="reg_user")
-                new_pw_1 = st.text_input("Nova Senha", type="password", key="reg_pw_1")
+                st.subheader("Criar Nova Conta")
+                new_user = st.text_input("Novo Usuário", key="reg_user", help="3-20 caracteres, letras e números.")
+                new_pw_1 = st.text_input("Nova Senha", type="password", key="reg_pw_1", help="Mínimo 8 caracteres, maiúsculas, números e símbolos.")
                 new_pw_2 = st.text_input("Repita a Senha", type="password", key="reg_pw_2")
-                if st.button("Cadastrar"):
-                    if new_pw_1 == new_pw_2:
-                        if AuthService.create_user(new_user, new_pw_1):
-                            st.success("Conta criada! Vá para a aba de Login.")
-                        else:
-                            st.error("Usuário já existe.")
-                    else:
+                
+                if st.button("Cadastrar", use_container_width=True):
+                    user_ok, user_msg = is_valid_username(new_user)
+                    pw_ok, pw_msg = is_valid_password(new_pw_1)
+                    
+                    if not user_ok:
+                        st.error(user_msg)
+                    
+                    elif not pw_ok:
+                        st.error(pw_msg)
+                    
+                    elif new_pw_1 != new_pw_2:
                         st.error("As senhas não coincidem.")
+                    
+                    else:
+                        with st.spinner("Processando..."):
+                            if AuthService.create_user(new_user, new_pw_1):
+                                st.success("✅ Conta criada com sucesso!")
+                                st.balloons()
+                                st.info("Agora você pode fazer login na aba ao lado.")
+                            else:
+                                st.error("❌ Erro: Este nome de usuário já está em uso.")
 
         return
 

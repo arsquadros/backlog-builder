@@ -5,3 +5,4 @@ jinja2
 bcrypt
 google-cloud-firestore
 google-genai
+streamlit-google-auth
